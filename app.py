@@ -14,10 +14,10 @@ load_dotenv()
 app = FastAPI(
     title="Text Summarizer App",
     description="Hybrid Summarization (HF + OpenAI)",
-    version="2.0"
+    version="2.1"
 )
 
-# 🔹 Config
+#  Config
 HF_API_URL = "https://api-inference.huggingface.co/models/facebook/bart-large-cnn"
 HF_TOKEN = os.getenv("HF_TOKEN")
 USE_OPENAI_FALLBACK = os.getenv("USE_OPENAI_FALLBACK", "true").lower() == "true"
@@ -28,14 +28,18 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 class DialogueInput(BaseModel):
     dialogue: str
 
+#  Clean input
 def clean_data(text):
     text = re.sub(r"\r\n", " ", text)
     text = re.sub(r"\s+", " ", text)
     text = re.sub(r"<.*?>", " ", text)
     return text.strip()
 
-#  Hugging Face call
+#  Hugging Face summarization
 def hf_summarize(text):
+    if not text.strip():
+        return None
+
     try:
         response = requests.post(
             HF_API_URL,
@@ -44,12 +48,17 @@ def hf_summarize(text):
                 "Content-Type": "application/json"
             },
             json={"inputs": text},
-            timeout=60
+            timeout=20  # faster fallback
         )
 
         print("HF RAW:", response.text)
 
         data = response.json()
+
+        # ❗ Handle HF error response
+        if isinstance(data, dict) and data.get("error"):
+            print("HF ERROR:", data)
+            return None
 
         if isinstance(data, list):
             result = data[0]
@@ -58,11 +67,14 @@ def hf_summarize(text):
         return None
 
     except Exception as e:
-        print("HF ERROR:", e)
+        print("HF EXCEPTION:", e)
         return None
 
 #  OpenAI fallback
 def openai_summarize(text):
+    if not text.strip():
+        return None
+
     try:
         prompt = f"Summarize the following text in 2-3 concise sentences:\n\n{text}"
 
@@ -79,13 +91,13 @@ def openai_summarize(text):
         print("OpenAI ERROR:", e)
         return None
 
-#  API
+#  API endpoint
 @app.post("/summarize/")
 async def summarize(dialogue_input: DialogueInput):
 
     cleaned = clean_data(dialogue_input.dialogue)
 
-    # 1️ Try Hugging Face
+    # 1️ Try Hugging Face first
     summary = hf_summarize(cleaned)
 
     # 2️ Fallback to OpenAI
@@ -93,12 +105,13 @@ async def summarize(dialogue_input: DialogueInput):
         print("Using OpenAI fallback...")
         summary = openai_summarize(cleaned)
 
+    # 3️ Final check
     if not summary:
-        return {"error": "Both HF and OpenAI failed"}
+        return {"error": "Both Hugging Face and OpenAI failed"}
 
     return {"summary": summary}
 
-# UI
+#  UI route
 @app.get("/")
 async def home():
     return FileResponse(os.path.join("templates", "index.html"))
