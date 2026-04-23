@@ -6,30 +6,34 @@ from fastapi.responses import FileResponse
 import os
 from dotenv import load_dotenv
 
+# Load environment variables
 load_dotenv()
 
 app = FastAPI(
     title="Text Summarizer App",
-    description="Text Summarization using T5",
+    description="Text Summarization using BART",
     version="1.0"
 )
 
-#  Hugging Face API
-API_URL = "https://api-inference.huggingface.co/models/facebook/bart-large-cnn"
+#  CORRECT Hugging Face API (WORKING)
+API_URL = "https://api-inference.huggingface.co/pipeline/summarization/facebook/bart-large-cnn"
+
 headers = {
     "Authorization": f"Bearer {os.getenv('HF_TOKEN')}"
 }
 
+# Request model
 class DialogueInput(BaseModel):
     dialogue: str
 
+# Clean function
 def clean_data(text):
     text = re.sub(r"\r\n", " ", text)
     text = re.sub(r"\s+", " ", text)
     text = re.sub(r"<.*?>", " ", text)
-    return text.strip().lower()
+    return text.strip()
 
-#  FINAL SAFE QUERY FUNCTION
+#  SAFE API CALL
 def query(payload):
     try:
         response = requests.post(
@@ -39,14 +43,11 @@ def query(payload):
             timeout=60
         )
 
-        #  DEBUG RAW RESPONSE
         print("RAW RESPONSE:", response.text)
 
-        #  Empty response check
         if not response.text:
-            return {"error": "Empty response from Hugging Face API"}
+            return {"error": "Empty response from Hugging Face"}
 
-        #  Safe JSON parse
         try:
             return response.json()
         except:
@@ -55,32 +56,27 @@ def query(payload):
     except Exception as e:
         return {"error": str(e)}
 
+#  SUMMARIZATION API
 @app.post("/summarize/")
 async def summarize(dialogue_input: DialogueInput):
 
-    #  T5 FIX
-    cleaned = "summarize: " + clean_data(dialogue_input.dialogue)
+    # ❗ BART ke liye NO prefix
+    cleaned = clean_data(dialogue_input.dialogue)
 
     output = query({
-        "inputs": cleaned,
-        "parameters": {
-            "max_length": 150,
-            "min_length": 30
-        },
-        "options": {
-            "wait_for_model": True
-        }
+        "inputs": cleaned
     })
 
     print("HF OUTPUT:", output)
 
-    #  Handle error
+    # Handle error
     if isinstance(output, dict):
         return {"error": output}
 
     try:
         result = output[0]
 
+        # Handle both possible keys
         summary = result.get("summary_text") or result.get("generated_text")
 
         if not summary:
@@ -94,6 +90,7 @@ async def summarize(dialogue_input: DialogueInput):
 
     return {"summary": summary}
 
+# UI route
 @app.get("/")
 async def home():
     return FileResponse(os.path.join("templates", "index.html"))
