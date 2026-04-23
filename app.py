@@ -22,7 +22,7 @@ HF_API_URL = "https://api-inference.huggingface.co/models/facebook/bart-large-cn
 HF_TOKEN = os.getenv("HF_TOKEN")
 USE_OPENAI_FALLBACK = os.getenv("USE_OPENAI_FALLBACK", "true").lower() == "true"
 
-# 🔹 OpenAI client
+#  OpenAI client
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 class DialogueInput(BaseModel):
@@ -34,7 +34,7 @@ def clean_data(text):
     text = re.sub(r"<.*?>", " ", text)
     return text.strip()
 
-# 🔥 Hugging Face call
+#  Hugging Face call
 def hf_summarize(text):
     try:
         response = requests.post(
@@ -61,7 +61,7 @@ def hf_summarize(text):
         print("HF ERROR:", e)
         return None
 
-# 🔥 OpenAI fallback
+#  OpenAI fallback
 def openai_summarize(text):
     try:
         prompt = f"Summarize the following text in 2-3 concise sentences:\n\n{text}"
@@ -79,16 +79,16 @@ def openai_summarize(text):
         print("OpenAI ERROR:", e)
         return None
 
-# 🚀 API
+#  API
 @app.post("/summarize/")
 async def summarize(dialogue_input: DialogueInput):
 
     cleaned = clean_data(dialogue_input.dialogue)
 
-    # 1️⃣ Try Hugging Face
+    # 1️ Try Hugging Face
     summary = hf_summarize(cleaned)
 
-    # 2️⃣ Fallback to OpenAI
+    # 2️ Fallback to OpenAI
     if not summary and USE_OPENAI_FALLBACK:
         print("Using OpenAI fallback...")
         summary = openai_summarize(cleaned)
