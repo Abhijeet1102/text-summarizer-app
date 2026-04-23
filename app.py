@@ -5,16 +5,17 @@ import re
 from fastapi.responses import FileResponse
 import os
 from dotenv import load_dotenv
+
 load_dotenv()
 
+app = FastAPI(
+    title="Text Summarizer App",
+    description="Text Summarization using T5",
+    version="1.0"
+)
 
-app = FastAPI(title="Text Summarizer App", description="Text Summarization using T5", version="1.0")
-
-#  Hugging Face API (your trained model)
+#  Hugging Face API
 API_URL = "https://api-inference.huggingface.co/models/abhijeetrai01/text-summarizer"
-
-#  IMPORTANT: apna token yaha daalo
-
 
 headers = {
     "Authorization": f"Bearer {os.getenv('HF_TOKEN')}"
@@ -31,10 +32,18 @@ def clean_data(text):
     text = re.sub(r"<.*?>", " ", text)
     return text.strip().lower()
 
-# API call function
+#  API call (SAFE)
 def query(payload):
-    response = requests.post(API_URL, headers=headers, json=payload)
-    return response.json()
+    try:
+        response = requests.post(
+            API_URL,
+            headers=headers,
+            json=payload,
+            timeout=60
+        )
+        return response.json()
+    except Exception as e:
+        return {"error": str(e)}
 
 # summarization endpoint
 @app.post("/summarize/")
@@ -46,10 +55,15 @@ async def summarize(dialogue_input: DialogueInput):
         "parameters": {"max_length": 150}
     })
 
+    #  HANDLE ALL CASES
+    if isinstance(output, dict):
+        # model loading or API error
+        return {"error": output}
+
     try:
-        summary = output[0]["summary_text"]
-    except:
-        summary = str(output)
+        summary = output[0].get("summary_text", "No summary generated")
+    except Exception:
+        return {"error": str(output)}
 
     return {"summary": summary}
 
