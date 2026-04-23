@@ -30,7 +30,7 @@ def clean_data(text):
     text = re.sub(r"<.*?>", " ", text)
     return text.strip().lower()
 
-#  SAFE API call
+#  FINAL SAFE QUERY FUNCTION
 def query(payload):
     try:
         response = requests.post(
@@ -39,14 +39,27 @@ def query(payload):
             json=payload,
             timeout=60
         )
-        return response.json()
+
+        #  DEBUG RAW RESPONSE
+        print("RAW RESPONSE:", response.text)
+
+        #  Empty response check
+        if not response.text:
+            return {"error": "Empty response from Hugging Face API"}
+
+        #  Safe JSON parse
+        try:
+            return response.json()
+        except:
+            return {"error": response.text}
+
     except Exception as e:
         return {"error": str(e)}
 
 @app.post("/summarize/")
 async def summarize(dialogue_input: DialogueInput):
-    
-    #  MOST IMPORTANT FIX (T5 prefix)
+
+    #  T5 FIX
     cleaned = "summarize: " + clean_data(dialogue_input.dialogue)
 
     output = query({
@@ -54,22 +67,23 @@ async def summarize(dialogue_input: DialogueInput):
         "parameters": {
             "max_length": 150,
             "min_length": 30
+        },
+        "options": {
+            "wait_for_model": True
         }
     })
 
     print("HF OUTPUT:", output)
 
-    #  Handle error (model loading etc.)
+    #  Handle error
     if isinstance(output, dict):
         return {"error": output}
 
     try:
         result = output[0]
 
-        #  handle both formats
         summary = result.get("summary_text") or result.get("generated_text")
 
-        #  fallback (important)
         if not summary:
             return {
                 "error": "No summary returned",
