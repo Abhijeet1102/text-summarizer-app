@@ -21,18 +21,16 @@ headers = {
     "Authorization": f"Bearer {os.getenv('HF_TOKEN')}"
 }
 
-# request model
 class DialogueInput(BaseModel):
     dialogue: str
 
-# clean function
 def clean_data(text):
     text = re.sub(r"\r\n", " ", text)
     text = re.sub(r"\s+", " ", text)
     text = re.sub(r"<.*?>", " ", text)
     return text.strip().lower()
 
-#  API call (SAFE)
+#  SAFE API call
 def query(payload):
     try:
         response = requests.post(
@@ -45,38 +43,44 @@ def query(payload):
     except Exception as e:
         return {"error": str(e)}
 
-# summarization endpoint
 @app.post("/summarize/")
 async def summarize(dialogue_input: DialogueInput):
-    cleaned = clean_data(dialogue_input.dialogue)
+    
+    #  MOST IMPORTANT FIX (T5 prefix)
+    cleaned = "summarize: " + clean_data(dialogue_input.dialogue)
 
     output = query({
         "inputs": cleaned,
-        "parameters": {"max_length": 150}
+        "parameters": {
+            "max_length": 150,
+            "min_length": 30
+        }
     })
 
-    # DEBUG (important)
     print("HF OUTPUT:", output)
 
-    #  Handle error response
+    #  Handle error (model loading etc.)
     if isinstance(output, dict):
         return {"error": output}
 
     try:
         result = output[0]
 
-        #  handle both keys
+        #  handle both formats
         summary = result.get("summary_text") or result.get("generated_text")
 
+        #  fallback (important)
         if not summary:
-            return {"error": "No summary returned", "raw_output": output}
+            return {
+                "error": "No summary returned",
+                "raw_output": output
+            }
 
     except Exception:
         return {"error": str(output)}
 
     return {"summary": summary}
 
-# UI route
 @app.get("/")
 async def home():
     return FileResponse(os.path.join("templates", "index.html"))
