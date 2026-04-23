@@ -15,8 +15,7 @@ app = FastAPI(
 )
 
 #  Hugging Face API
-API_URL = "https://api-inference.huggingface.co/models/abhijeetrai01/text-summarizer"
-
+API_URL = "https://api-inference.huggingface.co/pipeline/summarization/abhijeetrai01/text-summarizer"
 headers = {
     "Authorization": f"Bearer {os.getenv('HF_TOKEN')}"
 }
