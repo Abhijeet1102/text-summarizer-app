@@ -55,13 +55,22 @@ async def summarize(dialogue_input: DialogueInput):
         "parameters": {"max_length": 150}
     })
 
-    #  HANDLE ALL CASES
+    # DEBUG (important)
+    print("HF OUTPUT:", output)
+
+    #  Handle error response
     if isinstance(output, dict):
-        # model loading or API error
         return {"error": output}
 
     try:
-        summary = output[0].get("summary_text", "No summary generated")
+        result = output[0]
+
+        #  handle both keys
+        summary = result.get("summary_text") or result.get("generated_text")
+
+        if not summary:
+            return {"error": "No summary returned", "raw_output": output}
+
     except Exception:
         return {"error": str(output)}
 
