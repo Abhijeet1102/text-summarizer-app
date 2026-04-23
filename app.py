@@ -1,28 +1,24 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
-from transformers import T5ForConditionalGeneration, T5Tokenizer
-import torch
+import requests
 import re
 from fastapi.responses import FileResponse
 import os
+from dotenv import load_dotenv
+load_dotenv()
+
 
 app = FastAPI(title="Text Summarizer App", description="Text Summarization using T5", version="1.0")
 
-# load model
+#  Hugging Face API (your trained model)
+API_URL = "https://api-inference.huggingface.co/models/abhijeetrai01/text-summarizer"
+
+#  IMPORTANT: apna token yaha daalo
 
 
-model = T5ForConditionalGeneration.from_pretrained("abhijeetrai01/text-summarizer")
-tokenizer = T5Tokenizer.from_pretrained("abhijeetrai01/text-summarizer")
-
-# device
-if torch.backends.mps.is_available():
-    device = torch.device("mps")
-elif torch.cuda.is_available():
-    device = torch.device("cuda")
-else:
-    device = torch.device("cpu")
-
-model.to(device)
+headers = {
+    "Authorization": f"Bearer {os.getenv('HF_TOKEN')}"
+}
 
 # request model
 class DialogueInput(BaseModel):
@@ -35,36 +31,29 @@ def clean_data(text):
     text = re.sub(r"<.*?>", " ", text)
     return text.strip().lower()
 
-# summarization function
-def summarize_dialogue(dialogue: str) -> str:
-    dialogue = clean_data(dialogue)
+# API call function
+def query(payload):
+    response = requests.post(API_URL, headers=headers, json=payload)
+    return response.json()
 
-    inputs = tokenizer(
-        dialogue,
-        padding="max_length",
-        max_length=512,
-        truncation=True,
-        return_tensors="pt"
-    ).to(device)
-
-    targets = model.generate(
-        input_ids=inputs["input_ids"],
-        attention_mask=inputs["attention_mask"],
-        max_length=150,
-        num_beams=4,
-        early_stopping=True
-    )
-
-    summary = tokenizer.decode(targets[0], skip_special_tokens=True)
-    return summary
-
-# API
+# summarization endpoint
 @app.post("/summarize/")
 async def summarize(dialogue_input: DialogueInput):
-    summary = summarize_dialogue(dialogue_input.dialogue)
+    cleaned = clean_data(dialogue_input.dialogue)
+
+    output = query({
+        "inputs": cleaned,
+        "parameters": {"max_length": 150}
+    })
+
+    try:
+        summary = output[0]["summary_text"]
+    except:
+        summary = str(output)
+
     return {"summary": summary}
 
-# UI route (FIXED)
+# UI route
 @app.get("/")
 async def home():
     return FileResponse(os.path.join("templates", "index.html"))

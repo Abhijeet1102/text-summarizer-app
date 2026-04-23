@@ -4,24 +4,27 @@ __pycache__/
 *.pyo
 *.pyd
 
-# Virtual environment
+# Virtual environments
 venv/
 env/
 ENV/
 
-# Model files 
+# Environment variables 
+.env
+
+# Model & training files 
 saved_summary_model/
 results/
+
+# Hugging Face cache
+.cache/
+
+# Logs
+*.log
 
 # OS files
 .DS_Store
 Thumbs.db
 
-# Logs
-*.log
-
 # Jupyter
 .ipynb_checkpoints/
-
-# HuggingFace cache 
-.cache/
