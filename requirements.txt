@@ -6,3 +6,4 @@ sentencepiece
 jinja2
 requests
 python-dotenv
+openai
